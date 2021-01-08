@@ -19,7 +19,7 @@ class UV_Vis_spectra(object):
     """
     def __init__(self,fname):
         with open(fname) as f:
-           lines = f.read().splitlines()
+            lines = f.read().splitlines()
        
         header, data, self.info = self.split_file(lines)
         self.make_spectra(header, data)
@@ -38,7 +38,6 @@ class UV_Vis_spectra(object):
         header1 = lines[1].split(',')#[:-1]
         header = [header0, header1]
         data = []
-        print(lines[1203])
         for i in np.arange(2,len(lines)):
             if lines[i] == '':
                 info = lines[i+1:]
@@ -55,14 +54,19 @@ class UV_Vis_spectra(object):
         """
         dat = np.zeros((len(data),len(header[0])))
         for i in np.arange(len(data)):
-           line = data[i].split(',')
-           for j in np.arange(len(line)-1):
-               dat[i,j] = float(line[j])
+            line = data[i].split(',')
+            for j in np.arange(len(line)-1):
+                # This line accommodates situations where there spectra with different
+                # numbers of points in the same file:
+                if line[j] == '':
+                    dat[i,j] = np.nan
+                else:
+                    dat[i,j] = float(line[j])
 
         self.Spectra = []
         for i in np.arange(0,len(header[0])-1,2):
-           spec = Spectrum(dat[:,i], dat[:,i+1], header[0][i])
-           self.Spectra.append(spec)
+            spec = Spectrum(dat[:,i], dat[:,i+1], header[0][i])
+            self.Spectra.append(spec)
             
     def plot(self, arr, xlim=None):
         """
@@ -92,5 +96,6 @@ class Spectrum(object):
     """
     def __init__(self, x, y,name):
         self.name = name
-        self.WL_nm = x
-        self.Abs_OD = y
+        inds = np.where(~np.isnan(x))
+        self.WL_nm = x[inds]
+        self.Abs_OD = y[inds]
