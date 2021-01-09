@@ -86,7 +86,57 @@ class UV_Vis_spectra(object):
         plt.xlabel('Wavelength / nm')
         plt.ylabel('Absorbance / OD')
         plt.show()
-
+        
+    def eval_epsilon_xsec(self, specinds, backginds, cell_length, press_conc, press, T=293):
+        """
+        Function to convert internsity scales into decadic extinction coefficients and cross-sections
+        Arguments:
+        specinds:    List of indices of spectra to average over.
+        backinds:    List of indices of spectra to subtract from spectra defined by specinds
+        cell_length: Optical path length of the absorption cell_length [cm]
+        press_conc:  Value for pressure [torr] or concentration [mol/l] of the sample
+        press:       Boolean defining if the press_conc value refers to a pressure or not
+        T:           Temperature of the sample [K]
+        
+        Returns:
+        cross-section: Spectrum object involving beside the intensity [OD] also the decadic extinction 
+                       coefficient epsilon [l/(mol*cm)] and the absorption cross-section xsect [cm^2]
+        """
+        if press==True:
+            pPa = press_conc*133 # [Pa]
+            R = 8.314 # J/(mol*K)]
+            c = pPa/(R*T)*1E-3 # [mol/l]
+        else:
+            c = press_conc
+        
+        for i, ind in enumerate(specinds):
+            spec = self.Spectra[ind]
+            if i==0:
+                int = np.zeros_like(spec.WL_nm)
+            int += spec.Abs_OD
+        int = int/len(specinds)
+        
+        if backginds == None:
+            bkg = np.zeros_like(int)
+        else:
+            for i, ind in enumerate(backginds):
+                spec = self.Spectra[ind]
+                if i==0:
+                    bkg = np.zeros_like(spec.WL_nm)
+                bkg += spec.Abs_OD
+            bkg = bkg/len(backginds)
+        
+        int = int - bkg
+        
+        epsilon = int/(c*cell_length) # [l/(mol*cm)]
+        xsect = sigm = epsilon*np.log(10)*1000/6.022E23 # [cm^2]
+        
+        cross_sections = Spectrum(spec.WL_nm, int, self.Spectra[specinds[0]].name, epsilon, xsect)
+        
+        return cross_sections
+            
+        
+        
 class Spectrum(object):
     """
     Class to store wavelength and absorbance data of individual spectra in.
@@ -94,8 +144,27 @@ class Spectrum(object):
     x: Wavelength in nm
     y: absorbance in OD
     """
-    def __init__(self, x, y,name):
+    def __init__(self, x, y, name, eps=None, xsect=None ):
         self.name = name
         inds = np.where(~np.isnan(x))
         self.WL_nm = x[inds]
         self.Abs_OD = y[inds]
+        if eps is not None:
+           self.epsilon_l_mol_cm = eps
+        if xsect is not None:
+           self.xsect_cm2 = xsect
+           
+    def plot_xsect(self, xlim=None):
+        """
+        Function to plot absorption cross-sections.
+        Arguments:
+        xlim: x axis limits
+        """
+        plt.figure()
+        plt.plot(self.WL_nm, self.xsect_cm2*1E18)
+        plt.xlabel('Wavelength / nm')
+        plt.ylabel('Cross-section / Mbarn')
+        if xlim!=None:
+            plt.xlim(xlim)
+        plt.title(self.name)
+        plt.show()
